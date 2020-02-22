@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("-r", "--route", help="location to download")
 parser.add_argument("-u", "--user", help="user")
+parser.add_argument("-s", "--size", help="maximum file size in MB")
 
 args = parser.parse_args()
 
@@ -77,6 +78,8 @@ for link in soup.findAll("a"):
         courses.add(href)
 
 not_downloaded = []
+not_downloaded_size = []
+
 # Check every course page
 for course in courses:
     url = br.open(course)
@@ -102,11 +105,22 @@ for course in courses:
             href = link.get("href")
             if href is not None and "/mod/resource/view.php" in href:
 
-                # Donwload file and get filename from response header
+                # Download file and get filename from response header
                 response = br.open(href)
                 cdheader = response.get('Content-Disposition', None)
                 if cdheader is not None:
                     value, params = cgi.parse_header(cdheader)
+
+                    if args.size is not None:
+                        size = float(args.size)
+
+                        # Get file size and convert to MB
+                        size_header = int(response.get('Content-Length', None))
+                        file_size = size_header / (1024 * 1024)
+
+                        if file_size > size:
+                            not_downloaded_size.append((href, course_title))
+                            continue
                 else:
                     not_downloaded.append((href, course_title))
                     continue
@@ -119,3 +133,7 @@ for course in courses:
 if len(not_downloaded) > 0:
     for element in not_downloaded:
         print(element[0], " from ", element[1], " has not been downloaded, please download it manually")
+
+if len(not_downloaded_size) > 0:
+    for element in not_downloaded_size:
+        print(element[0], " from ", element[1], " exceeded the maximum download size allowed")

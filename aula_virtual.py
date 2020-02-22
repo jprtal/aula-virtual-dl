@@ -15,6 +15,29 @@ import mechanize
 import os
 import getpass
 import argparse
+from urllib.parse import unquote
+
+
+def download_file(download_response, file_path, file_name):
+    file = os.path.join(file_path, file_name)
+    print("\tDownloading: " + file_name)
+
+    fh = open(file, 'wb')
+    fh.write(download_response.read())
+    fh.close()
+
+
+def exceed_size(size_response):
+    if args.size is not None:
+        size = float(args.size)
+
+        # Get file size and convert to MB
+        size_header = int(size_response.get('Content-Length', None))
+        file_size = size_header / (1024 * 1024)
+
+        if file_size > size:
+            return True
+
 
 parser = argparse.ArgumentParser()
 
@@ -42,7 +65,7 @@ br.addheaders = [('User-agent',
                   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36')]
 br.open(BASE_URL)
 
-# Ask for NIA and password
+# Ask for user and password
 print("###################################################################\n" +
       "# Download all the content from your courses at URJC Aula Virtual #\n" +
       "###################################################################\n")
@@ -71,13 +94,14 @@ if status.upper() == "DENY":
 # Inspect home page for courses and save them on a set
 print("Checking for courses...")
 courses = set()
+linked_files = set()
+
 soup = bs(url, "html.parser")
 for link in soup.findAll("a"):
     href = link.get("href")
     if href is not None and "/course/view.php" in href:
         courses.add(href)
 
-not_downloaded = []
 not_downloaded_size = []
 
 # Check every course page
@@ -111,28 +135,33 @@ for course in courses:
                 if cdheader is not None:
                     value, params = cgi.parse_header(cdheader)
 
-                    if args.size is not None:
-                        size = float(args.size)
-
-                        # Get file size and convert to MB
-                        size_header = int(response.get('Content-Length', None))
-                        file_size = size_header / (1024 * 1024)
-
-                        if file_size > size:
-                            not_downloaded_size.append((href, course_title))
-                            continue
+                    if exceed_size(response):
+                        not_downloaded_size.append((href, course_title))
+                        continue
                 else:
-                    not_downloaded.append((href, course_title))
-                    continue
-                file = os.path.join(path, params["filename"].encode("latin-1").decode("utf-8"))
-                print("\tDownloading: " + params["filename"].encode("latin-1").decode("utf-8"))
-                fh = open(file, 'wb')
-                fh.write(response.read())
-                fh.close()
+                    url = br.open(href)
+                    soup = bs(url, "html.parser")
 
-if len(not_downloaded) > 0:
-    for element in not_downloaded:
-        print(element[0], " from ", element[1], " has not been downloaded, please download it manually")
+                    # Check for linked resources
+                    for link in soup.findAll("a"):
+                        href = link.get("href")
+                        if href is not None and "/mod_resource/content" in href:
+                            linked_files.add(href)
+
+                    for resource in linked_files:
+                        response = br.open(resource)
+                        filename = unquote(os.path.basename(resource))
+
+                        if exceed_size(response):
+                            not_downloaded_size.append((resource, course_title))
+                            continue
+
+                        download_file(response, path, filename)
+
+                    linked_files.clear()
+                    continue
+
+                download_file(response, path, params["filename"].encode("latin-1").decode("utf-8"))
 
 if len(not_downloaded_size) > 0:
     for element in not_downloaded_size:

@@ -8,6 +8,7 @@ git clone https://github.com/jprtal/aula-virtual-dl.git
 cd aula-virtual-dl
 pip3 install --user -r requirements.txt
 python3 aula_virtual.py
+```
 Optional arguments:
 ```
 -u --user    user

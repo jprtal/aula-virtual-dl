@@ -14,6 +14,7 @@ Optional arguments:
 -u --user    user
 -r --route   location to download
 -s --size    maximum file size in MB
+-c --course  course name
 ```
 
 ## Requirements

@@ -39,11 +39,21 @@ def exceed_size(size_response):
             return True
 
 
+def check_course(name):
+    if args.course is not None:
+        if args.course.casefold() in name.casefold():
+            return True
+    else:
+        if not "ESCO" in course_title and not "CURF" in course_title:
+            return True
+
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-r", "--route", help="location to download")
 parser.add_argument("-u", "--user", help="user")
 parser.add_argument("-s", "--size", help="maximum file size in MB")
+parser.add_argument("-c", "--course", help="course name")
 
 args = parser.parse_args()
 
@@ -111,7 +121,7 @@ for course in courses:
     course_title = soup.find("title").text
 
     # Don't check unwanted courses
-    if not "ESCO" in course_title and not "CURF" in course_title:
+    if check_course(course_title):
 
         # Create folder where files will be downloaded
         if args.route is not None:

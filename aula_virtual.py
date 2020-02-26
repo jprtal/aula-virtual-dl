@@ -95,9 +95,8 @@ br.submit(id="loginbtn")
 
 # Check if success
 url = br.open(BASE_URL)
-login = url.get('X-Frame-Options', None)
-status, _ = cgi.parse_header(login)
-if status.upper() == "DENY":
+login = url.get('Expires', None)
+if not login:
     print("Login failed. Check your user and password and try again")
     exit(1)
 

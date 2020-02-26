@@ -30,8 +30,13 @@ To install dependencies on MacOS:
 xcode-select --install
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 brew install python3
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python3 get-pip.py
 pip3 install --user -r requirements.txt
+```
+If you face `SSL: CERTIFICATE_VERIFY_FAILED` error you might solve it by installing `certifi`:
+```
+pip3 install --upgrade certifi
 ```
 
 ## License

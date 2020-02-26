@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2019.02.22
+# Version: 2019.02.26
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -19,12 +19,18 @@ from urllib.parse import unquote
 
 
 def download_file(download_response, file_path, file_name):
-    file = os.path.join(file_path, file_name)
-    print("\tDownloading: " + file_name)
+    size_header = int(download_response.get('Content-Length', None))
 
-    fh = open(file, 'wb')
-    fh.write(download_response.read())
-    fh.close()
+    file = os.path.join(file_path, file_name)
+
+    if os.path.exists(file) and os.path.getsize(file) == size_header:
+        print("\tFile %s already downloaded" % file_name)
+    else:
+        print("\tDownloading: " + file_name)
+
+        fh = open(file, 'wb')
+        fh.write(download_response.read())
+        fh.close()
 
 
 def exceed_size(size_response):

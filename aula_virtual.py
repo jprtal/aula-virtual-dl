@@ -18,19 +18,34 @@ import argparse
 from urllib.parse import unquote
 
 
-def download_file(download_response, file_path, file_name):
-    size_header = int(download_response.get('Content-Length', None))
+def download_file(file, stream):
+    fh = open(file, 'wb')
+    fh.write(stream.read())
+    fh.close()
 
+
+def download(download_response, file_path, file_name):
     file = os.path.join(file_path, file_name)
 
-    if os.path.exists(file) and os.path.getsize(file) == size_header:
-        print("\tFile %s already downloaded" % file_name)
+    if args.overwrite is False:
+        size_header = int(download_response.get('Content-Length', None))
+
+        if os.path.exists(file):
+            if os.path.getsize(file) == size_header:
+                print("\tFile: %s already downloaded" % file_name)
+
+                return
+            else:
+                print("\tFile: %s is outdated. Downloading again" % file_name)
+        else:
+            print("\tDownloading: " + file_name)
+
+        download_file(file, download_response)
+
     else:
         print("\tDownloading: " + file_name)
 
-        fh = open(file, 'wb')
-        fh.write(download_response.read())
-        fh.close()
+        download_file(file, download_response)
 
 
 def exceed_size(size_response):
@@ -60,6 +75,7 @@ parser.add_argument("-r", "--route", help="location to download")
 parser.add_argument("-u", "--user", help="user")
 parser.add_argument("-s", "--size", help="maximum file size in MB")
 parser.add_argument("-c", "--course", help="course name")
+parser.add_argument("-o", "--overwrite", action='store_true', help="overwrite existing files")
 
 args = parser.parse_args()
 
@@ -171,12 +187,12 @@ for course in courses:
                             not_downloaded_size.append((resource, course_title))
                             continue
 
-                        download_file(response, path, filename)
+                        download(response, path, filename)
 
                     linked_files.clear()
                     continue
 
-                download_file(response, path, params["filename"].encode("latin-1").decode("utf-8"))
+                download(response, path, params["filename"].encode("latin-1").decode("utf-8"))
 
 if len(not_downloaded_size) > 0:
     for element in not_downloaded_size:

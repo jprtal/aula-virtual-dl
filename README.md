@@ -11,10 +11,11 @@ python3 aula_virtual.py
 ```
 Optional arguments:
 ```
--u --user    user
--r --route   location to download
--s --size    maximum file size in MB
--c --course  course name
+-u --user       user
+-r --route      location to download
+-s --size       maximum file size in MB
+-c --course     course name
+-o --overwrite  overwrite existing files
 ```
 
 ## Requirements

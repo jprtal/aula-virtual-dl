@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2019.02.26
+# Version: 2019.02.27
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -158,41 +158,44 @@ for course in courses:
         # Check for files to download
         for link in soup.findAll("a"):
             href = link.get("href")
-            if href is not None and "/mod/resource/view.php" in href:
+            if href is not None:
+                if "/mod/resource/view.php" in href or "/mod/assign/view.php" in href:
 
-                # Download file and get filename from response header
-                response = br.open(href)
-                cdheader = response.get('Content-Disposition', None)
-                if cdheader is not None:
-                    value, params = cgi.parse_header(cdheader)
-
-                    if exceed_size(response):
-                        not_downloaded_size.append((href, course_title))
-                        continue
-                else:
-                    url = br.open(href)
-                    soup = bs(url, "html.parser")
-
-                    # Check for linked resources
-                    for link in soup.findAll("a"):
-                        href = link.get("href")
-                        if href is not None and "/mod_resource/content" in href:
-                            linked_files.add(href)
-
-                    for resource in linked_files:
-                        response = br.open(resource)
-                        filename = unquote(os.path.basename(resource))
+                    # Download file and get filename from response header
+                    response = br.open(href)
+                    cdheader = response.get('Content-Disposition', None)
+                    if cdheader is not None:
+                        value, params = cgi.parse_header(cdheader)
 
                         if exceed_size(response):
-                            not_downloaded_size.append((resource, course_title))
+                            not_downloaded_size.append((href, course_title))
                             continue
+                    else:
+                        url = br.open(href)
+                        soup = bs(url, "html.parser")
+                        title = soup.find("h2").text
 
-                        download(response, path, filename)
+                        # Check for linked resources or submission files
+                        for link in soup.findAll("a"):
+                            href = link.get("href")
+                            if href is not None:
+                                if "/mod_resource/content" in href or "/submission_files" in href:
+                                    linked_files.add((href, title))
 
-                    linked_files.clear()
-                    continue
+                        for resource in linked_files:
+                            response = br.open(resource[0])
+                            filename = resource[1] + " - " + unquote(os.path.basename(resource[0]).split('?', maxsplit=1)[0])
 
-                download(response, path, params["filename"].encode("latin-1").decode("utf-8"))
+                            if exceed_size(response):
+                                not_downloaded_size.append((resource[0], course_title))
+                                continue
+
+                            download(response, path, filename)
+
+                        linked_files.clear()
+                        continue
+
+                    download(response, path, params["filename"].encode("latin-1").decode("utf-8"))
 
 if len(not_downloaded_size) > 0:
     for element in not_downloaded_size:

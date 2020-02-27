@@ -16,6 +16,7 @@ import os
 import getpass
 import argparse
 from urllib.parse import unquote
+from pathvalidate import sanitize_filename
 
 
 def download_file(file, stream):
@@ -143,12 +144,13 @@ for course in courses:
 
     # Don't check unwanted courses
     if check_course(course_title):
+        course_title = sanitize_filename(course_title)
 
         # Create folder where files will be downloaded
         if args.route is not None:
-            path = os.path.join(args.route, course_title.replace("/", "."))
+            path = os.path.join(args.route, course_title)
         else:
-            path = os.path.join("courses/", course_title.replace("/", "."))
+            path = os.path.join("courses/", course_title)
 
         print("\nChecking for files in " + course_title)
 
@@ -190,12 +192,12 @@ for course in courses:
                                 not_downloaded_size.append((resource[0], course_title))
                                 continue
 
-                            download(response, path, filename)
+                            download(response, path, sanitize_filename(filename))
 
                         linked_files.clear()
                         continue
 
-                    download(response, path, params["filename"].encode("latin-1").decode("utf-8"))
+                    download(response, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
 
 if len(not_downloaded_size) > 0:
     for element in not_downloaded_size:

@@ -66,7 +66,7 @@ def check_course(name):
         if args.course.casefold() in name.casefold():
             return True
     else:
-        if not "ESCO" in course_title and not "CURF" in course_title:
+        if not "ESCO" in course_title and not "CURF" in course_title and not "RACC" in course_title:
             return True
 
 

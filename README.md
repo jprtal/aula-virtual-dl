@@ -40,7 +40,7 @@ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python3 get-pip.py
 pip3 install --user -r requirements.txt
 ```
-If you face `SSL: CERTIFICATE_VERIFY_FAILED` error you might solve it by installing `certifi`:
+If you face `SSL: CERTIFICATE_VERIFY_FAILED` error you might [solve](https://stackoverflow.com/a/42098127) it by installing `certifi`:
 ```
 pip3 install --upgrade certifi
 ```

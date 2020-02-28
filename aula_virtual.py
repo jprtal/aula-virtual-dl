@@ -66,7 +66,8 @@ def check_course(name):
         if args.course.casefold() in name.casefold():
             return True
     else:
-        if not "ESCO" in course_title and not "CURF" in course_title and not "RACC" in course_title:
+        titles = {"ESCO", "CURF", "RACC"}
+        if not any(ele + " -" in name for ele in titles):
             return True
 
 
@@ -186,7 +187,8 @@ for course in courses:
 
                         for resource in linked_files:
                             response = br.open(resource[0])
-                            filename = resource[1] + " - " + unquote(os.path.basename(resource[0]).split('?', maxsplit=1)[0])
+                            filename = resource[1] + " - " + unquote(
+                                os.path.basename(resource[0]).split('?', maxsplit=1)[0])
 
                             if exceed_size(response):
                                 not_downloaded_size.append((resource[0], course_title))

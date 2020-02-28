@@ -1,16 +1,15 @@
-# aula-virtual-dl
-This small python script allows you to download all the content from your [URJC Aula Virtual](https://www.aulavirtual.urjc.es) courses (.pdf, .docx, .pptx, etc.). It works as a crawler, checking the site for files as if it was you with your browser.
+<h1 align="center">aula-virtual-dl</h1>
+
+<p align="center">Tooling that fully <b>automates</b> the downloading of the content from your <a href="https://www.aulavirtual.urjc.es">URJC Aula Virtual</a> courses. :pencil2:<p>
 
 ## Usage
-Download the repository as zip, clone it with git, or just use curl to get only the script. On GNU/Linux or MacOS:
-```
-git clone https://github.com/jprtal/aula-virtual-dl.git
-cd aula-virtual-dl
-pip3 install --user -r requirements.txt
+```elm
 python3 aula_virtual.py
 ```
 Optional arguments:
 ```
+aula_virtual.py [-u username] [-r directory] [-s size] [-c coursename] [-o]
+
 -u --user       user
 -r --route      location to download
 -s --size       maximum file size in MB
@@ -19,15 +18,21 @@ Optional arguments:
 ```
 
 ## Requirements
-Python version 3.7 or above is required to run the script. Also, you'll need two libraries: `mechanize` and `beautifoulsoup`.
+Depending on your system, make sure to use `python3` and `pip3`.
 
-Most of GNU/Linux distributions call the python package as "python3". To install dependencies on Debian based GNU/Linux distros (Ubuntu, Linux Mint, ...):
+#### Windows
+Install python [release](https://www.python.org/ftp/python/3.8.2/python-3.8.2-amd64.exe) for Windows. During installation make sure to check `Add Python 3.X to PATH`.
 ```
-sudo apt-get install python3 python3-pip
 pip install -r requirements.txt
 ```
-To install dependencies on MacOS:
+#### GNU/Linux
+```zsh
+sudo apt install python3 python3-pip
+pip install -r requirements.txt
 ```
+
+#### macOS
+```zsh
 xcode-select --install
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 brew install python3
@@ -41,4 +46,4 @@ pip3 install --upgrade certifi
 ```
 
 ## License
-This script is under [MIT license](https://github.com/jprtal/aula-virtual-dl/blob/master/LICENSE).
+[MIT license](LICENSE).

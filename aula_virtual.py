@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2019.02.27
+# Version: 2020.03.27
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -17,6 +17,30 @@ import getpass
 import argparse
 from urllib.parse import unquote
 from pathvalidate import sanitize_filename
+import keyring
+
+
+def get_keyring_password(username):
+    try:
+        keyring_password = keyring.get_password("aula-virtual-dl", username)
+    except keyring.errors.InitError:
+        keyring_password = None
+        print("Failed to initialize keyring\n")
+
+    return keyring_password
+
+
+def prompt_password_save(save):
+    if save:
+        save_password = input("Do you want to save your password? (y/N): ").lower() == "y"
+        if save_password:
+            try:
+                keyring.set_password("aula-virtual-dl", user, password)
+                print("You password will be stored securely")
+            except keyring.errors.PasswordSetError:
+                print("Failed to store password")
+        else:
+            print("You password won't be saved")
 
 
 def download_file(file, stream):
@@ -99,22 +123,30 @@ br.addheaders = [('User-agent',
                   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36')]
 br.open(BASE_URL)
 
-# Ask for user and password
 print("###################################################################\n" +
       "# Download all the content from your courses at URJC Aula Virtual #\n" +
       "###################################################################\n")
 
+# Ask for user and password
 if args.user is not None:
     user = args.user
 else:
     user = input("Enter user: ")
-passwd = getpass.getpass(prompt="Enter password: ")
+
+# Check if password was previously stored
+password = get_keyring_password(user)
+
+if password is None:
+    prompt_save = True
+    password = getpass.getpass(prompt="Enter password: ")
+else:
+    prompt_save = False
 
 # Submit login form
 print("Login in...")
 br.select_form(nr=0)
 br.form['username'] = user
-br.form['password'] = passwd
+br.form['password'] = password
 br.submit(id="loginbtn")
 
 # Check if success
@@ -124,8 +156,11 @@ if not login:
     print("Login failed. Check your user and password and try again")
     exit(1)
 
+# Ask for saving password if login succeed
+prompt_password_save(prompt_save)
+
 # Inspect home page for courses and save them on a set
-print("Checking for courses...")
+print("\nChecking for courses...")
 courses = set()
 linked_files = set()
 

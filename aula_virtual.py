@@ -19,6 +19,7 @@ from urllib.parse import unquote
 from pathvalidate import sanitize_filename
 import keyring
 import re
+import concurrent.futures
 
 
 def get_args():
@@ -281,9 +282,10 @@ def main():
 
             links = soup.findAll("a", attrs={'href': re.compile("/mod/resource|/mod/assign")})
 
-            for link in links:
-                href = link.get("href")
-                process_download(href, args, path, br, course_title, files_not_downloaded)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                for link in links:
+                    href = link.get("href")
+                    executor.submit(process_download, href, args, path, br, course_title, files_not_downloaded)
 
     print_not_downloaded(files_not_downloaded)
 

@@ -18,6 +18,37 @@ import argparse
 from urllib.parse import unquote
 from pathvalidate import sanitize_filename
 import keyring
+import re
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-r", "--route", help="location to download")
+    parser.add_argument("-u", "--user", help="user")
+    parser.add_argument("-s", "--size", help="maximum file size in MB")
+    parser.add_argument("-c", "--course", help="course name")
+    parser.add_argument("-o", "--overwrite", action='store_true', help="overwrite existing files")
+
+    return parser.parse_args()
+
+
+def setup_browser():
+    br = mechanize.Browser()
+    cookiejar = cookielib.LWPCookieJar()
+    br.set_cookiejar(cookiejar)
+
+    br.set_handle_equiv(True)
+    br.set_handle_gzip(True)
+    br.set_handle_redirect(True)
+    br.set_handle_referer(True)
+    br.set_handle_robots(False)
+
+    br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
+    br.addheaders = [('User-agent',
+                      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36')]
+
+    return br
 
 
 def get_keyring_password(username):
@@ -30,17 +61,64 @@ def get_keyring_password(username):
     return keyring_password
 
 
-def prompt_password_save(save):
+def get_credentials(args):
+    if args.user is not None:
+        user = args.user
+    else:
+        user = input("Enter user: ")
+
+    # Check if password was previously stored
+    password = get_keyring_password(user)
+
+    if password is None:
+        prompt_save = True
+        password = getpass.getpass(prompt="Enter password: ")
+    else:
+        prompt_save = False
+
+    return user, password, prompt_save
+
+
+def login(browser, url, user, password):
+    # Submit login form
+    print("Login in...")
+
+    browser.select_form(nr=0)
+    browser.form['username'] = user
+    browser.form['password'] = password
+    browser.submit(id="loginbtn")
+
+    # Check if success
+    url = browser.open(url)
+    success = url.get('Expires', None)
+    if not success:
+        print("Login failed. Check your user and password and try again")
+        exit(1)
+
+    return url
+
+
+def prompt_password_save(save, user, password):
     if save:
         save_password = input("Do you want to save your password? (y/N): ").lower() == "y"
+
         if save_password:
             try:
                 keyring.set_password("aula-virtual-dl", user, password)
+
                 print("You password will be stored securely")
             except keyring.errors.PasswordSetError:
                 print("Failed to store password")
         else:
             print("You password won't be saved")
+
+
+def scrape_courses(url, courses):
+    soup = bs(url, "html.parser")
+    for link in soup.findAll("a"):
+        href = link.get("href")
+        if href is not None and "/course/view.php" in href:
+            courses.add(href)
 
 
 def download_file(file, stream):
@@ -49,7 +127,7 @@ def download_file(file, stream):
     fh.close()
 
 
-def download(download_response, file_path, file_name):
+def download(args, download_response, file_path, file_name):
     file = os.path.join(file_path, file_name)
 
     if args.overwrite is False:
@@ -73,7 +151,48 @@ def download(download_response, file_path, file_name):
         download_file(file, download_response)
 
 
-def exceed_size(size_response):
+def process_download(link, args, path, browser, course_title, not_downloaded):
+    if link is not None:
+        if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link:
+
+            # Download file and get filename from response header
+            response = browser.open(link)
+            cdheader = response.get('Content-Disposition', None)
+            if cdheader is not None:
+                value, params = cgi.parse_header(cdheader)
+
+                if exceed_size(args, response):
+                    not_downloaded.append((link, course_title))
+                    return
+
+                download(args, response, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
+            else:
+                linked_files = set()
+
+                url = browser.open(link)
+                soup = bs(url, "html.parser")
+                title = soup.find("h2").text
+
+                # Check for linked resources or submission files
+                for link in soup.findAll("a"):
+                    link = link.get("link")
+                    if link is not None:
+                        if "/mod_resource/content" in link or "/submission_files" in link:
+                            linked_files.add((link, title))
+
+                for resource in linked_files:
+                    response = browser.open(resource[0])
+                    filename = resource[1] + " - " + unquote(
+                        os.path.basename(resource[0]).split('?', maxsplit=1)[0])
+
+                    if exceed_size(args, response):
+                        not_downloaded.append((resource[0], course_title))
+                        continue
+
+                    download(args, response, path, sanitize_filename(filename))
+
+
+def exceed_size(args, size_response):
     if args.size is not None:
         size = float(args.size)
 
@@ -85,7 +204,7 @@ def exceed_size(size_response):
             return True
 
 
-def check_course(name):
+def check_course(args, name):
     if args.course is not None:
         if args.course.casefold() in name.casefold():
             return True
@@ -95,147 +214,79 @@ def check_course(name):
             return True
 
 
-parser = argparse.ArgumentParser()
+def get_path(args, name):
+    if args.route is not None:
+        path = os.path.join(args.route, name)
+    else:
+        path = os.path.join("courses/", name)
 
-parser.add_argument("-r", "--route", help="location to download")
-parser.add_argument("-u", "--user", help="user")
-parser.add_argument("-s", "--size", help="maximum file size in MB")
-parser.add_argument("-c", "--course", help="course name")
-parser.add_argument("-o", "--overwrite", action='store_true', help="overwrite existing files")
+    # Create folder where files will be downloaded
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-args = parser.parse_args()
+    return path
 
-BASE_URL = "https://www.aulavirtual.urjc.es/moodle/"
 
-# Set the browser for the web crawler
-br = mechanize.Browser()
-cookiejar = cookielib.LWPCookieJar()
-br.set_cookiejar(cookiejar)
+def print_header():
+    print("###################################################################\n" +
+          "# Download all the content from your courses at URJC Aula Virtual #\n" +
+          "###################################################################\n")
 
-br.set_handle_equiv(True)
-br.set_handle_gzip(True)
-br.set_handle_redirect(True)
-br.set_handle_referer(True)
-br.set_handle_robots(False)
 
-br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
-br.addheaders = [('User-agent',
-                  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36')]
-br.open(BASE_URL)
+def print_not_downloaded(file_list):
+    if len(file_list) > 0:
+        for element in file_list:
+            print(element[0], " from ", element[1], " exceeded the maximum download size allowed")
 
-print("###################################################################\n" +
-      "# Download all the content from your courses at URJC Aula Virtual #\n" +
-      "###################################################################\n")
 
-# Ask for user and password
-if args.user is not None:
-    user = args.user
-else:
-    user = input("Enter user: ")
+def main():
+    args = get_args()
 
-# Check if password was previously stored
-password = get_keyring_password(user)
+    BASE_URL = "https://www.aulavirtual.urjc.es/moodle/"
 
-if password is None:
-    prompt_save = True
-    password = getpass.getpass(prompt="Enter password: ")
-else:
-    prompt_save = False
+    # Set the browser for the web crawler
+    br = setup_browser()
+    br.open(BASE_URL)
 
-# Submit login form
-print("Login in...")
-br.select_form(nr=0)
-br.form['username'] = user
-br.form['password'] = password
-br.submit(id="loginbtn")
+    print_header()
 
-# Check if success
-url = br.open(BASE_URL)
-login = url.get('Expires', None)
-if not login:
-    print("Login failed. Check your user and password and try again")
-    exit(1)
+    # Ask for user and password
+    user, password, prompt_save = get_credentials(args)
 
-# Ask for saving password if login succeed
-prompt_password_save(prompt_save)
+    # Login
+    url = login(br, BASE_URL, user, password)
 
-# Inspect home page for courses and save them on a set
-print("\nChecking for courses...")
-courses = set()
-linked_files = set()
+    # Ask for saving password if login succeed
+    prompt_password_save(prompt_save, user, password)
 
-soup = bs(url, "html.parser")
-for link in soup.findAll("a"):
-    href = link.get("href")
-    if href is not None and "/course/view.php" in href:
-        courses.add(href)
+    # Inspect home page for courses and save them on a set
+    print("\nChecking for courses...")
+    courses = set()
+    scrape_courses(url, courses)
 
-not_downloaded_size = []
+    files_not_downloaded = []
 
-# Check every course page
-for course in courses:
-    url = br.open(course)
-    soup = bs(url, "html.parser")
-    course_title = soup.find("title").text
+    # Check every course page
+    for course in courses:
+        url = br.open(course)
+        soup = bs(url, "html.parser")
+        course_title = soup.find("title").text
 
-    # Don't check unwanted courses
-    if check_course(course_title):
-        course_title = sanitize_filename(course_title)
+        # Don't check unwanted courses
+        if check_course(args, course_title):
+            course_title = sanitize_filename(course_title)
 
-        # Create folder where files will be downloaded
-        if args.route is not None:
-            path = os.path.join(args.route, course_title)
-        else:
-            path = os.path.join("courses/", course_title)
+            print("\nChecking for files in " + course_title)
+            path = get_path(args, course_title)
 
-        print("\nChecking for files in " + course_title)
+            links = soup.findAll("a", attrs={'href': re.compile("/mod/resource|/mod/assign")})
 
-        if not os.path.exists(path):
-            os.makedirs(path)
+            for link in links:
+                href = link.get("href")
+                process_download(href, args, path, br, course_title, files_not_downloaded)
 
-        # Check for files to download
-        for link in soup.findAll("a"):
-            href = link.get("href")
-            if href is not None:
-                if "/mod/resource/view.php" in href or "/mod/assign/view.php" in href:
+    print_not_downloaded(files_not_downloaded)
 
-                    # Download file and get filename from response header
-                    response = br.open(href)
-                    cdheader = response.get('Content-Disposition', None)
-                    if cdheader is not None:
-                        value, params = cgi.parse_header(cdheader)
 
-                        if exceed_size(response):
-                            not_downloaded_size.append((href, course_title))
-                            continue
-                    else:
-                        url = br.open(href)
-                        soup = bs(url, "html.parser")
-                        title = soup.find("h2").text
-
-                        # Check for linked resources or submission files
-                        for link in soup.findAll("a"):
-                            href = link.get("href")
-                            if href is not None:
-                                if "/mod_resource/content" in href or "/submission_files" in href:
-                                    linked_files.add((href, title))
-
-                        for resource in linked_files:
-                            response = br.open(resource[0])
-                            filename = resource[1] + " - " + unquote(
-                                os.path.basename(resource[0]).split('?', maxsplit=1)[0])
-
-                            if exceed_size(response):
-                                not_downloaded_size.append((resource[0], course_title))
-                                continue
-
-                            download(response, path, sanitize_filename(filename))
-
-                        linked_files.clear()
-                        continue
-
-                    download(response, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
-
-if len(not_downloaded_size) > 0:
-    for element in not_downloaded_size:
-        print(element[0], " from ", element[1], " exceeded the maximum download size allowed")
+if __name__ == "__main__":
+    main()

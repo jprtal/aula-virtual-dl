@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2020.04.17
+# Version: 2020.04.17-1
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -12,13 +12,12 @@ import argparse
 import cgi
 import concurrent.futures
 import getpass
-import http.cookiejar
 import os
 import re
 from urllib.parse import unquote
 
 import keyring
-import mechanize
+import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 
@@ -36,21 +35,14 @@ def get_args():
 
 
 def setup_browser():
-    br = mechanize.Browser()
-    cj = http.cookiejar.LWPCookieJar()
-    br.set_cookiejar(cj)
+    headers = [("User-agent",
+                "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0")]
 
-    br.set_handle_equiv(True)
-    br.set_handle_gzip(True)
-    br.set_handle_redirect(True)
-    br.set_handle_referer(True)
-    br.set_handle_robots(False)
+    session = requests.Session()
 
-    br.set_handle_refresh(mechanize.HTTPRefreshProcessor(), max_time=1)
-    br.addheaders = [("User-agent",
-                      "Mozilla/5.0 (X11; Linux x86_64; rv:75.0) Gecko/20100101 Firefox/75.0")]
+    session.headers.update(headers)
 
-    return br
+    return session
 
 
 def get_keyring_password(username):
@@ -81,23 +73,28 @@ def get_credentials(args):
     return user, password, prompt_save
 
 
-def login(browser, url, user, password):
-    # Submit login form
+def login(session, url, user, password):
     print("Login in...")
 
-    browser.select_form(nr=0)
-    browser.form["username"] = user
-    browser.form["password"] = password
-    browser.submit(id="loginbtn")
+    login_payload = {
+        "anchor": "",
+        "logintoken": "",
+        "username": user,
+        "password": password
+    }
+
+    # Get the real login url
+    login_url = session.get(url)
+
+    resp = session.post(login_url.url, data=login_payload)
 
     # Check if success
-    url = browser.open(url)
-    success = url.get("Expires", None)
+    success = resp.headers.get("Expires")
     if not success:
         print("Login failed. Check your user and password and try again")
         exit(1)
 
-    return url
+    return resp
 
 
 def prompt_password_save(save, user, password):
@@ -133,7 +130,7 @@ def download(args, download_response, file_path, file_name):
     file = os.path.join(file_path, file_name)
 
     if args.overwrite is False:
-        size_header = int(download_response.get("Content-Length", None))
+        size_header = int(download_response.headers.get("Content-Length"))
 
         if os.path.exists(file):
             if os.path.getsize(file) == size_header:
@@ -145,35 +142,37 @@ def download(args, download_response, file_path, file_name):
         else:
             print("\tDownloading: " + file_name)
 
-        download_file(file, download_response)
+        download_file(file, download_response.text)
 
     else:
         print("\tDownloading: " + file_name)
 
-        download_file(file, download_response)
+        download_file(file, download_response.text)
 
 
-def process_download(link, args, path, browser, course_title, not_downloaded):
+def process_download(link, args, path, session, course_title, not_downloaded):
     if link is not None:
         if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link:
 
             # Download file and get filename from response header
-            response = browser.open(link)
-            cdheader = response.get("Content-Disposition", None)
-            if cdheader is not None:
-                value, params = cgi.parse_header(cdheader)
+            resp = session.get(link)
 
-                if exceed_size(args, response):
+            content_disposition = resp.headers.get("Content-Disposition")
+
+            if content_disposition:
+                _, params = cgi.parse_header(content_disposition)
+
+                if exceed_size(args, resp):
                     not_downloaded.append((link, course_title))
                     return
 
-                download(args, response, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
+                download(args, resp, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
 
             else:
                 linked_files = set()
 
-                url = browser.open(link)
-                soup = BeautifulSoup(url, "html.parser")
+                resp = session.get(link)
+                soup = BeautifulSoup(resp.text, "html.parser")
                 title = soup.find("h2").text
 
                 # Check for linked resources or submission files
@@ -186,23 +185,23 @@ def process_download(link, args, path, browser, course_title, not_downloaded):
 
                 if len(linked_files) > 0:
                     for resource in linked_files:
-                        response = browser.open(resource[0])
+                        resp = session.get(resource[0])
                         filename = resource[1] + " - " + unquote(
                             os.path.basename(resource[0]).split("?", maxsplit=1)[0])
 
-                        if exceed_size(args, response):
+                        if exceed_size(args, resp):
                             not_downloaded.append((resource[0], course_title))
                             continue
 
-                        download(args, response, path, sanitize_filename(filename))
+                        download(args, resp, path, sanitize_filename(filename))
 
 
-def exceed_size(args, size_response):
+def exceed_size(args, response):
     if args.size is not None:
         size = float(args.size)
 
         # Get file size and convert to MB
-        size_header = int(size_response.get("Content-Length", None))
+        size_header = int(response.headers.get("Content-Length"))
         file_size = size_header / (1024 * 1024)
 
         if file_size > size:
@@ -250,8 +249,7 @@ def main():
     BASE_URL = "https://www.aulavirtual.urjc.es/moodle/"
 
     # Set the browser for the web crawler
-    br = setup_browser()
-    br.open(BASE_URL)
+    session = setup_browser()
 
     print_header()
 
@@ -259,7 +257,7 @@ def main():
     user, password, prompt_save = get_credentials(args)
 
     # Login
-    url = login(br, BASE_URL, user, password)
+    resp = login(session, BASE_URL, user, password)
 
     # Ask for saving password if login succeed
     prompt_password_save(prompt_save, user, password)
@@ -267,14 +265,14 @@ def main():
     # Inspect home page for courses and save them on a set
     print("\nChecking for courses...")
     courses = set()
-    scrape_courses(url, courses)
+    scrape_courses(resp.text, courses)
 
     files_not_downloaded = []
 
     # Check every course page
     for course in courses:
-        url = br.open(course)
-        soup = BeautifulSoup(url, "html.parser")
+        url = session.get(course)
+        soup = BeautifulSoup(url.text, "html.parser")
         course_title = soup.find("title").text
 
         # Don't check unwanted courses
@@ -289,7 +287,7 @@ def main():
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 for link in links:
                     href = link.get("href")
-                    executor.submit(process_download, href, args, path, br, course_title, files_not_downloaded)
+                    executor.submit(process_download, href, args, path, session, course_title, files_not_downloaded)
 
     print_not_downloaded(files_not_downloaded)
 

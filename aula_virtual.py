@@ -167,6 +167,7 @@ def process_download(link, args, path, browser, course_title, not_downloaded):
                     return
 
                 download(args, response, path, sanitize_filename(params["filename"].encode("latin-1").decode("utf-8")))
+
             else:
                 linked_files = set()
 
@@ -175,11 +176,12 @@ def process_download(link, args, path, browser, course_title, not_downloaded):
                 title = soup.find("h2").text
 
                 # Check for linked resources or submission files
-                for link in soup.findAll("a"):
-                    link = link.get("link")
-                    if link is not None:
-                        if "/mod_resource/content" in link or "/submission_files" in link:
-                            linked_files.add((link, title))
+
+                links = soup.findAll("a", attrs={'href': re.compile("/mod_resource/content|/submission_files")})
+
+                for link in links:
+                    href = link.get("href")
+                    linked_files.add((href, title))
 
                 for resource in linked_files:
                     response = browser.open(resource[0])

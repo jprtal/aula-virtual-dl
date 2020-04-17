@@ -73,8 +73,10 @@ def get_credentials(args):
     return user, password, prompt_save
 
 
-def login(session, url, user, password):
+def login(session, user, password):
     print("Login in...")
+
+    login_url = "https://www.aulavirtual.urjc.es/moodle/login/index.php"
 
     login_payload = {
         "anchor": "",
@@ -83,10 +85,7 @@ def login(session, url, user, password):
         "password": password
     }
 
-    # Get the real login url
-    login_url = session.get(url)
-
-    resp = session.post(login_url.url, data=login_payload)
+    resp = session.post(login_url, data=login_payload)
 
     # Check if success
     success = resp.headers.get("Expires")
@@ -246,8 +245,6 @@ def print_not_downloaded(file_list):
 def main():
     args = get_args()
 
-    BASE_URL = "https://www.aulavirtual.urjc.es/moodle/"
-
     # Set the browser for the web crawler
     session = setup_browser()
 
@@ -257,7 +254,7 @@ def main():
     user, password, prompt_save = get_credentials(args)
 
     # Login
-    resp = login(session, BASE_URL, user, password)
+    resp = login(session, user, password)
 
     # Ask for saving password if login succeed
     prompt_password_save(prompt_save, user, password)

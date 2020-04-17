@@ -14,6 +14,7 @@ import concurrent.futures
 import getpass
 import os
 import re
+import shutil
 from urllib.parse import unquote
 
 import keyring
@@ -120,33 +121,33 @@ def scrape_courses(url, courses):
 
 
 def download_file(file, stream):
-    fh = open(file, "wb")
-    fh.write(stream.read())
-    fh.close()
+    with open(file, "wb") as out:
+        shutil.copyfileobj(stream.raw, out)
 
 
 def download(args, download_response, file_path, file_name):
     file = os.path.join(file_path, file_name)
 
-    if args.overwrite is False:
-        size_header = int(download_response.headers.get("Content-Length"))
+    if download_response.status_code == 200:
+        if args.overwrite is False:
+            size_header = int(download_response.headers.get("Content-Length"))
 
-        if os.path.exists(file):
-            if os.path.getsize(file) == size_header:
-                print("\tFile: %s already downloaded" % file_name)
+            if os.path.exists(file):
+                if os.path.getsize(file) == size_header:
+                    print("\tFile: %s already downloaded" % file_name)
 
-                return
+                    return
+                else:
+                    print("\tFile: %s is outdated. Downloading again" % file_name)
             else:
-                print("\tFile: %s is outdated. Downloading again" % file_name)
+                print("\tDownloading: " + file_name)
+
+            download_file(file, download_response)
+
         else:
             print("\tDownloading: " + file_name)
 
-        download_file(file, download_response.text)
-
-    else:
-        print("\tDownloading: " + file_name)
-
-        download_file(file, download_response.text)
+            download_file(file, download_response)
 
 
 def process_download(link, args, path, session, course_title, not_downloaded):
@@ -154,7 +155,7 @@ def process_download(link, args, path, session, course_title, not_downloaded):
         if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link:
 
             # Download file and get filename from response header
-            resp = session.get(link)
+            resp = session.get(link, stream=True)
 
             content_disposition = resp.headers.get("Content-Disposition")
 
@@ -184,7 +185,7 @@ def process_download(link, args, path, session, course_title, not_downloaded):
 
                 if len(linked_files) > 0:
                     for resource in linked_files:
-                        resp = session.get(resource[0])
+                        resp = session.get(resource[0], stream=True)
                         filename = resource[1] + " - " + unquote(
                             os.path.basename(resource[0]).split("?", maxsplit=1)[0])
 

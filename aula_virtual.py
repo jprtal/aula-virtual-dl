@@ -268,24 +268,28 @@ def main():
     files_not_downloaded = []
 
     # Check every course page
-    for course in courses:
-        url = session.get(course)
-        soup = BeautifulSoup(url.text, "html.parser")
-        course_title = soup.find("title").text
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        for course in courses:
+            url = session.get(course)
+            soup = BeautifulSoup(url.text, "html.parser")
+            course_title = soup.find("title").text
 
-        # Don't check unwanted courses
-        if check_course(args, course_title):
-            course_title = sanitize_filename(course_title)
+            # Don't check unwanted courses
+            if check_course(args, course_title):
+                course_title = sanitize_filename(course_title)
 
-            print("\nChecking for files in " + course_title)
-            path = get_path(args, course_title)
+                print("\nChecking for files in " + course_title)
+                path = get_path(args, course_title)
 
-            links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign")})
+                links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign")})
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                futures = []
                 for link in links:
                     href = link.get("href")
-                    executor.submit(process_download, href, args, path, session, course_title, files_not_downloaded)
+                    futures.append(executor.submit(process_download, href, args, path, session, course_title,
+                                                   files_not_downloaded))
+
+                concurrent.futures.wait(futures, timeout=None, return_when=concurrent.futures.ALL_COMPLETED)
 
     print_not_downloaded(files_not_downloaded)
 

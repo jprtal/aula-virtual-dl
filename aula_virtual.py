@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2020.04.17-1
+# Version: 2020.04.17-2
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument("-s", "--size", help="maximum file size in MB")
     parser.add_argument("-c", "--course", help="course name")
     parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing files")
+    parser.add_argument("-w", "--workers", help="number of workers")
 
     return parser.parse_args()
 
@@ -231,6 +232,15 @@ def get_path(args, name):
     return path
 
 
+def get_num_workers(args):
+    if args.workers is not None:
+        num = int(args.workers)
+    else:
+        num = 5
+
+    return num
+
+
 def print_header():
     print("###################################################################\n" +
           "# Download all the content from your courses at URJC Aula Virtual #\n" +
@@ -268,7 +278,9 @@ def main():
     files_not_downloaded = []
 
     # Check every course page
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    workers = get_num_workers(args)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         for course in courses:
             url = session.get(course)
             soup = BeautifulSoup(url.text, "html.parser")

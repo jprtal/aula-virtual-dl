@@ -15,6 +15,7 @@ aula_virtual.py [-u username] [-r directory] [-s size] [-c coursename] [-o]
 -s --size       maximum file size in MB
 -c --course     course name
 -o --overwrite  overwrite existing files
+-w --workers    number of workers
 ```
 
 ## Requirements

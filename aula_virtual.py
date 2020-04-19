@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Copyright (C) 2018 Aitor Alonso at aalonso@aalonso.eu
-# Copyright (C) 2020 Jorge Portal
-# This script is under MIT license
+# Copyright (c) 2018 Aitor Alonso at aalonso@aalonso.eu
+# Copyright (c) 2020 Jorge Portal
+# This work is licensed under the terms of the MIT license.
+# For a copy, see <https://opensource.org/licenses/MIT>.
 #
 # Version: 2020.04.19-0
 # You can find new versions and fixes of this script over the time at

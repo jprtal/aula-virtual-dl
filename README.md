@@ -8,7 +8,7 @@ python3 aula_virtual.py
 ```
 Optional arguments:
 ```
-aula_virtual.py [-u username] [-r directory] [-s size] [-c coursename] [-o]
+aula_virtual.py [-u username] [-r directory] [-s size] [-c coursename] [-o] [-w workers]
 
 -u --user       user
 -r --route      location to download

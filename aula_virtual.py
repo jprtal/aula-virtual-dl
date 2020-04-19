@@ -244,7 +244,7 @@ def get_num_workers(args):
     if args.workers is not None:
         num = int(args.workers)
     else:
-        num = 5
+        num = 1
 
     return num
 

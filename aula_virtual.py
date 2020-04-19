@@ -121,6 +121,12 @@ def scrape_courses(url, courses):
             courses.add(href)
 
 
+def download_web(path, filename, text):
+    file = os.path.join(path, "%s.html" % filename)
+    with open(file, "w") as out:
+        out.write(text)
+
+
 def download_file(file, stream):
     with open(file, "wb") as out:
         shutil.copyfileobj(stream.raw, out)
@@ -293,6 +299,10 @@ def main():
 
                 print("\nChecking for files in " + course_title)
                 path = get_path(args, course_title)
+
+                # Download course HTML
+                print("\tSaving course web page...")
+                download_web(path, course_title, url.text)
 
                 links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign|/mod/folder")})
 

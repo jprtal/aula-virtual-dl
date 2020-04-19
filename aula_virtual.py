@@ -4,7 +4,7 @@
 # Copyright (C) 2020 Jorge Portal
 # This script is under MIT license
 #
-# Version: 2020.04.17-2
+# Version: 2020.04.19-0
 # You can find new versions and fixes of this script over the time at
 # https://github.com/jprtal/aula-virtual-dl
 
@@ -153,7 +153,7 @@ def download(args, download_response, file_path, file_name):
 
 def process_download(link, args, path, session, course_title, not_downloaded):
     if link is not None:
-        if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link:
+        if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link or "/moodle/mod/folder/view.php" in link:
 
             # Download file and get filename from response header
             resp = session.get(link, stream=True)
@@ -178,7 +178,8 @@ def process_download(link, args, path, session, course_title, not_downloaded):
 
                 # Check for linked resources or submission files
 
-                links = soup.findAll("a", attrs={"href": re.compile("/mod_resource/content|/submission_files")})
+                links = soup.findAll("a", attrs={"href": re.compile(
+                    "/mod_resource/content|/submission_files|/mod_folder/content")})
 
                 for link in links:
                     href = link.get("href")
@@ -293,7 +294,7 @@ def main():
                 print("\nChecking for files in " + course_title)
                 path = get_path(args, course_title)
 
-                links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign")})
+                links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign|/mod/folder")})
 
                 futures = []
                 for link in links:

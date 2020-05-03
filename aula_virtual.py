@@ -179,7 +179,6 @@ def process_download(link, args, path, session, course_title, not_downloaded):
             else:
                 linked_files = set()
 
-                resp = session.get(link)
                 soup = BeautifulSoup(resp.text, "html.parser")
                 title = soup.find("h2").text
 

@@ -115,7 +115,7 @@ def prompt_password_save(save, user, password):
 
 
 def scrape_courses(url, courses):
-    soup = BeautifulSoup(url, "html.parser")
+    soup = soup_parse(url)
     for link in soup.findAll("a"):
         href = link.get("href")
         if href is not None and "/course/view.php" in href:
@@ -180,7 +180,7 @@ def process_download(link, args, path, session, course_title, not_downloaded):
             else:
                 linked_files = set()
 
-                soup = BeautifulSoup(resp.text, "html.parser")
+                soup = soup_parse(resp.text)
                 title = soup.find("h2").text
 
                 # Check for nested resources
@@ -255,6 +255,10 @@ def get_num_workers(args):
     return num
 
 
+def soup_parse(html):
+    return BeautifulSoup(html, "lxml")
+
+
 def print_header():
     print("###################################################################\n" +
           "# Download all the content from your courses at URJC Aula Virtual #\n" +
@@ -297,7 +301,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         for course in courses:
             url = session.get(course)
-            soup = BeautifulSoup(url.text, "html.parser")
+            soup = soup_parse(url.text)
             course_title = soup.find("title").text
 
             # Don't check unwanted courses

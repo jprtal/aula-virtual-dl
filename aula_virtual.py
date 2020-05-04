@@ -184,21 +184,39 @@ def process_download(link, args, path, session, course_title, not_downloaded):
                 title = soup.find("h2").text
 
                 # Check for nested resources
-                links = soup.findAll("a", attrs={"href": re.compile(
-                    "/mod_resource/content|/submission_files|/mod_folder/content|/mod/quiz/review")})
+                if "/mod/quiz/view.php" in link:
+                    quiz_table = soup.find("table", attrs={"class": "generaltable quizattemptsummary"})
+                    table_body = quiz_table.find("tbody")
+                    rows = table_body.find_all("tr")
 
-                for link in links:
-                    href = link.get("href")
-                    linked_files.add(href)
+                    # Multiple quiz attempts thus we can grab the attempt number
+                    if len(rows) > 1:
+                        for row in rows:
+                            cols = row.find_all("td")
+                            attempt_link = soup.find("a", attrs={"href": re.compile("/mod/quiz/review")}).get("href")
+
+                            if attempt_link is not None:
+                                attempt_number = cols[0].text
+
+                                linked_files.add((attempt_link, attempt_number))
+
+                    else:
+                        linked_files.add(soup.find("a", attrs={"href": re.compile("/mod/quiz/review")}).get("href"))
+
+                else:
+                    for link in soup.findAll("a", attrs={"href": re.compile(
+                            "/mod_resource/content|/submission_files|/mod_folder/content")}):
+                        linked_files.add(link.get("href"))
 
                 if len(linked_files) > 0:
                     for resource in linked_files:
                         if "/mod/quiz/review.php" in resource:
                             print("\tDownloading quiz: " + title)
 
-                            resp = session.get(resource)
-                            # TODO: make the quiz name unique to allow downloading multiple attempts
-                            download_web(path, title, resp.text)
+                            resp = session.get(resource[0])
+                            quiz_filename = title + " (" + resource[1] + ")"
+
+                            download_web(path, quiz_filename, resp.text)
                         else:
                             resp = session.get(resource, stream=True)
                             filename = title + " - " + unquote(
@@ -315,7 +333,8 @@ def main():
                 print("\tSaving course web page...")
                 download_web(path, course_title, url.text)
 
-                links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign|/mod/folder|/mod/quiz/")})
+                links = soup.findAll("a",
+                                     attrs={"href": re.compile("/mod/resource|/mod/assign|/mod/folder|/mod/quiz/")})
 
                 futures = []
                 for link in links:

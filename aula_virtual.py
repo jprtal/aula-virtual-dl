@@ -160,7 +160,7 @@ def download(args, download_response, file_path, file_name):
 
 def process_download(link, args, path, session, course_title, not_downloaded):
     if link is not None:
-        if re.search("/mod/resource/|/mod/assign/|/moodle/mod/folder/|/mod_resource/", link):
+        if re.search("/mod/resource/|/mod/assign/|/moodle/mod/folder/|/mod_resource/|/mod/quiz/", link):
 
             # Download file and get filename from response header
             resp = session.get(link, stream=True)
@@ -182,25 +182,43 @@ def process_download(link, args, path, session, course_title, not_downloaded):
                 soup = soup_parse(resp.text)
                 title = soup.find("h2").text
 
-                # Check for linked resources or submission files
-                links = soup.findAll("a", attrs={"href": re.compile(
-                    "/mod_resource/content|/submission_files|/mod_folder/content")})
+                if "/mod/quiz/view.php" in link:
+                    best_row = soup.find("tr", class_="bestrow")
+                    if best_row is None:
+                        best_row = soup.find("tr", class_="lastrow")
 
-                for link in links:
-                    href = link.get("href")
-                    linked_files.add((href, title))
+                    attempt_link = best_row.find("a", attrs={"href": re.compile("/mod/quiz/review")}).get("href")
+                    linked_files.add((attempt_link, title))
+
+                else:
+                    # Check for linked resources or submission files
+                    links = soup.findAll("a", attrs={"href": re.compile(
+                        "/mod_resource/content|/submission_files|/mod_folder/content")})
+
+                    for link in links:
+                        href = link.get("href")
+                        linked_files.add((href, title))
 
                 if len(linked_files) > 0:
                     for resource in linked_files:
-                        resp = session.get(resource[0], stream=True)
-                        filename = resource[1] + " - " + unquote(
-                            os.path.basename(resource[0]).split("?", maxsplit=1)[0])
+                        if "/mod/quiz/review.php" in resource[0]:
+                            print("\tDownloading quiz: " + title)
 
-                        if exceed_size(args, resp):
-                            not_downloaded.append((resource[0], course_title))
-                            continue
+                            resp = session.get(resource[0])
+                            quiz_filename = resource[1]
 
-                        download(args, resp, path, sanitize_filename(filename))
+                            download_web(path, quiz_filename, resp.text)
+
+                        else:
+                            resp = session.get(resource[0], stream=True)
+                            filename = resource[1] + " - " + unquote(
+                                os.path.basename(resource[0]).split("?", maxsplit=1)[0])
+
+                            if exceed_size(args, resp):
+                                not_downloaded.append((resource[0], course_title))
+                                continue
+
+                            download(args, resp, path, sanitize_filename(filename))
 
 
 def exceed_size(args, response):
@@ -308,7 +326,7 @@ def main():
                 download_web(path, course_title, url.text)
 
                 links = soup.findAll("a", attrs={
-                    "href": re.compile("/mod/resource|/mod/assign|/mod/folder|/mod_resource/")})
+                    "href": re.compile("/mod/resource|/mod/assign|/mod/folder|/mod_resource/|/mod/quiz/")})
 
                 futures = []
                 for link in links:

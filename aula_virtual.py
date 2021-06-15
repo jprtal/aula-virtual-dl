@@ -160,7 +160,7 @@ def download(args, download_response, file_path, file_name):
 
 def process_download(link, args, path, session, course_title, not_downloaded):
     if link is not None:
-        if "/mod/resource/view.php" in link or "/mod/assign/view.php" in link or "/moodle/mod/folder/view.php" in link:
+        if re.search("/mod/resource/|/mod/assign/|/moodle/mod/folder/|/mod_resource/", link):
 
             # Download file and get filename from response header
             resp = session.get(link, stream=True)
@@ -184,7 +184,6 @@ def process_download(link, args, path, session, course_title, not_downloaded):
                 title = soup.find("h2").text
 
                 # Check for linked resources or submission files
-
                 links = soup.findAll("a", attrs={"href": re.compile(
                     "/mod_resource/content|/submission_files|/mod_folder/content")})
 
@@ -305,7 +304,8 @@ def main():
                 print("\tSaving course web page...")
                 download_web(path, course_title, url.text)
 
-                links = soup.findAll("a", attrs={"href": re.compile("/mod/resource|/mod/assign|/mod/folder")})
+                links = soup.findAll("a", attrs={
+                    "href": re.compile("/mod/resource|/mod/assign|/mod/folder|/mod_resource/")})
 
                 futures = []
                 for link in links:

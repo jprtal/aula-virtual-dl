@@ -1,5 +1,5 @@
 beautifulsoup4==4.8.2
-urllib3==1.25.7
+urllib3==1.26.5
 pathvalidate==2.2.0
 keyring==21.2.0
 requests==2.23.0
